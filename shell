@@ -1,0 +1,61 @@
+#!/bin/bash
+PSQL="psql --username=freecodecamp --dbname=number_guess -t --no-align -c"
+echo "Enter your username:"
+read PLAYER_USERNAME
+PLAYER_SEARCH_RESULT=$($PSQL "SELECT username FROM usernames WHERE username='$PLAYER_USERNAME'")
+if [[ -z $PLAYER_SEARCH_RESULT ]]
+then
+  echo "Welcome, $PLAYER_USERNAME! It looks like this is your first time here."
+  INSERTION_RESULT=$($PSQL "INSERT INTO users(games_played) VALUES(1)")
+  USER_ID=$($PSQL "SELECT user_id FROM users WHERE games_played=1 AND best_game=0")
+  USER_NAME_INSERTION_RESULT=$($PSQL "INSERT INTO usernames(username, user_id) VALUES('$PLAYER_USERNAME', $USER_ID)")
+else
+  USER_ID=$($PSQL "SELECT user_id FROM usernames WHERE username='$PLAYER_USERNAME'")
+  USER_NAME_ID_RESULTS=$($PSQL "SELECT best_game, games_played FROM users WHERE user_id=$USER_ID")
+  echo $USER_NAME_ID_RESULTS | while IFS="|" read BEST_GAME GAMES_PLAYED
+  do
+    echo "Welcome back, $PLAYER_USERNAME! You have played $GAMES_PLAYED games, and your best game took $BEST_GAME guesses."
+    ADD_ONE_PLUS_GAME=$($PSQL "UPDATE users SET games_played=(games_played+1) WHERE user_id=$USER_ID")
+  done
+fi
+SECRET_NUM=$(($RANDOM % 1001))
+echo "Guess the secret number between 1 and 1000:"
+TRIES_TRY=0
+read TRIED_GUESS
+NUMBER_DEALER() {
+    if [[ ! $TRIED_GUESS =~ ^[0-9]+$ ]]
+    then
+      echo "That is not an integer, guess again:"
+      read TRIED_GUESS
+      NUMBER_DEALER
+    else
+      TRIES_TRY=$(($TRIES_TRY+1))
+      if [[ $TRIED_GUESS -eq $SECRET_NUM ]]
+      then
+        BEST_GAME_CHECKER
+        echo "You guessed it in $TRIES_TRY tries. The secret number was $SECRET_NUM. Nice job!"
+      elif [[ $TRIED_GUESS -gt $SECRET_NUM ]]
+      then
+        echo "It's lower than that, guess again:"
+        read TRIED_GUESS
+        NUMBER_DEALER
+      else
+        echo "It's higher than that, guess again:"
+        read TRIED_GUESS
+        NUMBER_DEALER
+      fi
+    fi
+}
+BEST_GAME_CHECKER() {
+  BEST_GAME=$($PSQL "SELECT best_game FROM users WHERE user_id=$USER_ID")
+  if [[ $BEST_GAME -eq 0 ]]
+  then 
+   RESULT=$($PSQL "UPDATE users SET best_game=$TRIES_TRY WHERE user_id=$USER_ID")
+  elif [[ $TRIES_TRY -lt $BEST_GAME ]]
+  then
+    RESULT=$($PSQL "UPDATE users SET best_game=$TRIES_TRY WHERE user_id=$USER_ID")
+  fi
+}
+NUMBER_DEALER
+
+
